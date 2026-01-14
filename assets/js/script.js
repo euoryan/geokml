@@ -1,10 +1,9 @@
-const THEME_STORAGE_KEY = 'theme_preference';
+const THEME_STORAGE_KEY = 'euoryan_theme';
 const AUTO_SAVE_KEY = 'geokml_autosave';
 const HISTORY_STORAGE_KEY = 'geokml_history';
 const MAX_HISTORY_ITEMS = 20;
 
 const elements = {
-  themeToggle: document.getElementById('themeToggle'),
   linkInput: document.getElementById('linkInput'),
   nameInput: document.getElementById('nameInput'),
   convertButton: document.getElementById('convertButton'),
@@ -24,8 +23,9 @@ const elements = {
   historyList: document.getElementById('historyList'),
   clearButton: document.getElementById('clearButton'),
   privacyToggle: document.getElementById('privacyToggle'),
-  privacyIcon: document.getElementById('privacyIcon'),
-  resetButton: document.getElementById('resetButton')
+  resetButton: document.getElementById('resetButton'),
+  mobileToggle: document.getElementById('mobileToggle'),
+  sidebar: document.getElementById('sidebar')
 };
 
 let state = {
@@ -38,126 +38,81 @@ let state = {
 };
 
 // ============================================
-// Theme System
+// Theme System (Design System)
 // ============================================
 
-function getSystemTheme() {
-  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
+const themeSwitcher = document.getElementById('themeSwitcher');
+const themeDropdownBtn = document.getElementById('themeDropdownBtn');
+const themeDropdownContent = document.getElementById('themeDropdownContent');
+const themeCurrentIcon = document.getElementById('themeCurrentIcon');
+const themeCurrentText = document.getElementById('themeCurrentText');
+const themeSystem = document.getElementById('themeSystem');
+const themeDark = document.getElementById('themeDark');
+const themeLight = document.getElementById('themeLight');
+const html = document.documentElement;
 
-function getStoredTheme() {
-  try {
-    return localStorage.getItem(THEME_STORAGE_KEY) || 'system';
-  } catch (error) {
-    return 'system';
-  }
-}
+const getSystemTheme = () => window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+const applyTheme = (theme) => theme === 'light' ? html.setAttribute('data-theme', 'light') : html.removeAttribute('data-theme');
 
-function setStoredTheme(theme) {
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-  } catch (error) {
-    console.warn('Failed to save theme preference:', error);
-  }
-}
+const iconLight = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+const iconDark = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
 
-function getEffectiveTheme() {
-  const preference = getStoredTheme();
-  if (preference === 'system') {
-    return getSystemTheme();
-  }
-  return preference;
-}
-
-function setTheme(preference) {
-  const effectiveTheme = preference === 'system' ? getSystemTheme() : preference;
-  document.body.setAttribute('data-theme', effectiveTheme);
-  setStoredTheme(preference);
-  updateThemeIcon(effectiveTheme);
-  updateThemeDropdown(preference);
-}
-
-function updateThemeIcon(effectiveTheme) {
-  const preference = getStoredTheme();
-  const sunIcon = document.querySelector('.theme-icon-sun');
-  const moonIcon = document.querySelector('.theme-icon-moon');
-  const systemIcon = document.querySelector('.theme-icon-system');
+function updateThemeUI(theme) {
+  if (!themeSystem || !themeDark || !themeLight) return;
   
-  if (sunIcon) {
-    sunIcon.style.display = 'none';
-    sunIcon.style.opacity = '0';
-  }
-  if (moonIcon) {
-    moonIcon.style.display = 'none';
-    moonIcon.style.opacity = '0';
-  }
-  if (systemIcon) {
-    systemIcon.style.display = 'none';
-    systemIcon.style.opacity = '0';
-  }
-  
-  if (preference === 'system') {
-    if (systemIcon) {
-      systemIcon.style.display = 'block';
-      systemIcon.style.opacity = '1';
-    }
-  } else if (preference === 'light') {
-    if (sunIcon) {
-      sunIcon.style.display = 'block';
-      sunIcon.style.opacity = '1';
-    }
-  } else if (preference === 'dark') {
-    if (moonIcon) {
-      moonIcon.style.display = 'block';
-      moonIcon.style.opacity = '1';
-    }
+  [themeSystem, themeDark, themeLight].forEach(btn => btn.classList.remove('active'));
+  if (theme === 'system') {
+    themeSystem.classList.add('active');
+    if (themeCurrentText) themeCurrentText.textContent = 'Sistema';
+    if (themeCurrentIcon) themeCurrentIcon.innerHTML = getSystemTheme() === 'light' ? iconLight : iconDark;
+  } else if (theme === 'light') {
+    themeLight.classList.add('active');
+    if (themeCurrentText) themeCurrentText.textContent = 'Claro';
+    if (themeCurrentIcon) themeCurrentIcon.innerHTML = iconLight;
+  } else {
+    themeDark.classList.add('active');
+    if (themeCurrentText) themeCurrentText.textContent = 'Escuro';
+    if (themeCurrentIcon) themeCurrentIcon.innerHTML = iconDark;
   }
 }
 
-function updateThemeDropdown(preference) {
-  const options = document.querySelectorAll('.theme-option');
-  options.forEach(option => {
-    if (option.dataset.theme === preference) {
-      option.classList.add('active');
-    } else {
-      option.classList.remove('active');
-    }
-  });
-}
-
-function toggleThemeDropdown() {
-  const dropdown = document.getElementById('themeDropdown');
-  if (dropdown) {
-    dropdown.classList.toggle('active');
-  }
-}
-
-function closeThemeDropdown() {
-  const dropdown = document.getElementById('themeDropdown');
-  if (dropdown) {
-    dropdown.classList.remove('active');
-  }
-}
-
-function selectTheme(themePreference) {
-  setTheme(themePreference);
-  closeThemeDropdown();
+function setTheme(theme) {
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
+  updateThemeUI(theme);
+  applyTheme(theme === 'system' ? getSystemTheme() : theme);
 }
 
 function initializeTheme() {
-  const savedPreference = getStoredTheme();
-  setTheme(savedPreference);
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'system';
+  setTheme(savedTheme);
+
+  const mediaQueryLight = window.matchMedia('(prefers-color-scheme: light)');
+  const mediaQueryDark = window.matchMedia('(prefers-color-scheme: dark)');
+  const handleSystemThemeChange = () => {
+    if ((localStorage.getItem(THEME_STORAGE_KEY) || 'system') === 'system') {
+      applyTheme(getSystemTheme());
+      updateThemeUI('system');
+    }
+  };
   
-  if (window.matchMedia) {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    mediaQuery.addEventListener('change', (e) => {
-      if (getStoredTheme() === 'system') {
-        const newTheme = e.matches ? 'dark' : 'light';
-        document.body.setAttribute('data-theme', newTheme);
-        updateThemeIcon(newTheme);
-      }
-    });
+  if (mediaQueryLight.addEventListener) {
+    mediaQueryLight.addEventListener('change', handleSystemThemeChange);
+    mediaQueryDark.addEventListener('change', handleSystemThemeChange);
+  } else if (mediaQueryLight.addListener) {
+    mediaQueryLight.addListener(handleSystemThemeChange);
+    mediaQueryDark.addListener(handleSystemThemeChange);
   }
+  
+  let lastSystemTheme = getSystemTheme();
+  setInterval(() => {
+    if ((localStorage.getItem(THEME_STORAGE_KEY) || 'system') === 'system') {
+      const current = getSystemTheme();
+      if (current !== lastSystemTheme) {
+        lastSystemTheme = current;
+        handleSystemThemeChange();
+      }
+    }
+  }, 1000);
 }
 
 // ============================================
@@ -168,20 +123,9 @@ function togglePrivacyMode() {
   state.privacyMode = !state.privacyMode;
   
   if (elements.privacyToggle) {
-    elements.privacyToggle.classList.toggle('active', state.privacyMode);
-    elements.privacyToggle.setAttribute('title', state.privacyMode ? 'Mostrar dados sensíveis' : 'Ocultar dados sensíveis');
-  }
-  
-  const privacyIcon = document.getElementById('privacyIcon');
-  const privacyIconSlash = document.getElementById('privacyIconSlash');
-  
-  if (privacyIcon && privacyIconSlash) {
-    if (state.privacyMode) {
-      privacyIcon.style.display = 'none';
-      privacyIconSlash.style.display = 'block';
-    } else {
-      privacyIcon.style.display = 'block';
-      privacyIconSlash.style.display = 'none';
+    const text = elements.privacyToggle.querySelector('#privacyToggleText');
+    if (text) {
+      text.textContent = state.privacyMode ? 'Mostrar Dados' : 'Ocultar Dados';
     }
   }
   
@@ -380,8 +324,8 @@ function createHistoryItemElement(item) {
   
   const typeLabel = item.type === 'maps-to-kml' ? 'Link→KML' : 'KML→Link';
   const actionButton = item.type === 'maps-to-kml' 
-    ? '<button class="history-download-button" type="button" data-item-id="' + item.id + '" data-action="download">Baixar</button>'
-    : '<button class="history-download-button" type="button" data-item-id="' + item.id + '" data-action="copy">Copiar Link</button>';
+    ? '<button class="btn btn-secondary btn-sm history-download-button" type="button" data-item-id="' + item.id + '" data-action="download" title="Baixar arquivo KML"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Baixar</span></button>'
+    : '<button class="btn btn-secondary btn-sm history-download-button" type="button" data-item-id="' + item.id + '" data-action="copy" title="Copiar link do Google Maps"><svg class="btn-icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copiar</span></button>';
   
   div.innerHTML = `
     <div class="history-item-content">
@@ -389,18 +333,15 @@ function createHistoryItemElement(item) {
         <div class="history-item-header">
           <div class="history-name">${escapeHtml(item.name)}</div>
           <div class="history-actions">
-            <button class="history-action-button history-delete-button" title="Excluir" aria-label="Excluir">
-              🗑️
+            ${actionButton}
+            <button class="btn btn-ghost btn-sm history-action-button history-delete-button" title="Excluir item" aria-label="Excluir">
+              <svg class="btn-icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>
         </div>
         
-        <div class="history-url-preview" style="font-size: var(--font-size-xs); color: var(--text-tertiary); margin: var(--spacing-xs) 0;">
+        <div class="history-url-preview">
           ${state.privacyMode ? '***' : `${typeLabel} • ${item.pointsCount} pontos • ${formatDate(item.createdAt)}`}
-        </div>
-        
-        <div class="history-download-section">
-          ${actionButton}
         </div>
       </div>
     </div>
@@ -420,18 +361,20 @@ function addHistoryItemListeners(element, item) {
     
     if (action === 'download' && item.type === 'maps-to-kml') {
       downloadFile(item.kmlContent, item.filename);
-      actionButton.textContent = 'Baixado!';
+      const span = actionButton.querySelector('span');
+      if (span) span.textContent = 'Baixado!';
       actionButton.classList.add('copied');
       setTimeout(() => {
-        actionButton.textContent = 'Baixar';
+        if (span) span.textContent = 'Baixar';
         actionButton.classList.remove('copied');
       }, 2000);
     } else if (action === 'copy' && item.type === 'kml-to-maps') {
       copyToClipboard(item.googleMapsLink);
-      actionButton.textContent = 'Copiado!';
+      const span = actionButton.querySelector('span');
+      if (span) span.textContent = 'Copiado!';
       actionButton.classList.add('copied');
       setTimeout(() => {
-        actionButton.textContent = 'Copiar Link';
+        if (span) span.textContent = 'Copiar';
         actionButton.classList.remove('copied');
       }, 2000);
     }
@@ -478,9 +421,9 @@ function showHistoryItemDetails(item) {
       resultSublabel.textContent = 'Arquivo disponível para download';
     }
     elements.resultInfo.textContent = `${item.name}\n${item.pointsCount} pontos extraídos`;
-    elements.downloadButton.style.display = 'flex';
+    elements.downloadButton.style.display = 'inline-flex';
     elements.copyLinkButton.style.display = 'none';
-    elements.downloadButtonText.textContent = 'Download KML';
+    elements.downloadButtonText.textContent = 'Download';
     elements.downloadButton.classList.remove('success');
   } else {
     state.currentKMLContent = null;
@@ -493,12 +436,12 @@ function showHistoryItemDetails(item) {
     }
     elements.resultInfo.textContent = `${item.name}\n${item.pointsCount} pontos extraídos`;
     elements.downloadButton.style.display = 'none';
-    elements.copyLinkButton.style.display = 'flex';
-    elements.copyLinkButtonText.textContent = 'Copiar Link';
+    elements.copyLinkButton.style.display = 'inline-flex';
+    elements.copyLinkButtonText.textContent = 'Copiar';
     elements.copyLinkButton.classList.remove('success');
   }
   
-  elements.resultSection.classList.add('show');
+  elements.resultSection.style.display = 'flex';
   
   showCurrentFileInfo(item);
   
@@ -627,7 +570,7 @@ function showCurrentFileInfo(item) {
   lines.push(`═══════════════════════════════════════════════════════`);
   
   elements.currentFileInfoContent.textContent = lines.join('\n');
-  elements.currentFileInfo.classList.add('show');
+  elements.currentFileInfo.style.display = 'block';
 }
 
 // ============================================
@@ -906,6 +849,10 @@ async function convertToKML() {
   
   elements.convertButton.classList.add('loading');
   elements.convertButton.disabled = true;
+  const spinner = elements.convertButton.querySelector('#convertSpinner');
+  const icon = elements.convertButton.querySelector('#convertIcon');
+  if (spinner) spinner.style.display = 'block';
+  if (icon) icon.style.display = 'none';
   
   try {
     const coordinates = extractCoordinatesFromUrl(link);
@@ -962,20 +909,20 @@ async function convertToKML() {
       resultSublabel.textContent = 'Arquivo pronto para download';
     }
     elements.resultInfo.textContent = `${name}\n${finalCoordinates.length} pontos extraídos`;
-    elements.resultSection.classList.add('show');
+    elements.resultSection.style.display = 'flex';
     
-    elements.downloadButton.style.display = 'flex';
+    elements.downloadButton.style.display = 'inline-flex';
     elements.copyLinkButton.style.display = 'none';
     
     showCurrentFileInfo(historyItem);
     
     // Fazer download automático
     downloadFile(kmlContent, historyItem.filename);
-    elements.downloadButtonText.textContent = 'Download Iniciado!';
+    elements.downloadButtonText.textContent = 'Baixando...';
     elements.downloadButton.classList.add('success');
     
     setTimeout(() => {
-      elements.downloadButtonText.textContent = 'Baixar Novamente';
+      elements.downloadButtonText.textContent = 'Download';
       elements.downloadButton.classList.remove('success');
     }, 2500);
     
@@ -987,6 +934,10 @@ async function convertToKML() {
   } finally {
     elements.convertButton.classList.remove('loading');
     elements.convertButton.disabled = false;
+    const spinner = elements.convertButton.querySelector('#convertSpinner');
+    const icon = elements.convertButton.querySelector('#convertIcon');
+    if (spinner) spinner.style.display = 'none';
+    if (icon) icon.style.display = 'block';
   }
 }
 
@@ -998,11 +949,11 @@ function handleDownload() {
   
   downloadFile(state.currentKMLContent, state.currentFilename);
   
-  elements.downloadButtonText.textContent = 'Download Iniciado';
+  elements.downloadButtonText.textContent = 'Baixando...';
   elements.downloadButton.classList.add('copied');
   
   setTimeout(() => {
-    elements.downloadButtonText.textContent = 'Download KML';
+    elements.downloadButtonText.textContent = 'Download';
     elements.downloadButton.classList.remove('copied');
   }, 2000);
 }
@@ -1038,11 +989,11 @@ function handleCopyLink() {
   
   copyToClipboard(state.currentGoogleMapsLink);
   
-  elements.copyLinkButtonText.textContent = 'Copiado';
+  elements.copyLinkButtonText.textContent = 'Copiado!';
   elements.copyLinkButton.classList.add('copied');
   
   setTimeout(() => {
-    elements.copyLinkButtonText.textContent = 'Copiar Link';
+    elements.copyLinkButtonText.textContent = 'Copiar';
     elements.copyLinkButton.classList.remove('copied');
   }, 2000);
 }
@@ -1075,8 +1026,8 @@ function switchTab(tabId) {
   
   state.currentTab = tabId;
   
-  elements.resultSection.classList.remove('show');
-  elements.currentFileInfo.classList.remove('show');
+    elements.resultSection.style.display = 'none';
+    elements.currentFileInfo.style.display = 'none';
   
   saveFormData();
 }
@@ -1399,6 +1350,10 @@ async function convertKMLToMaps() {
   
   elements.convertKmlButton.classList.add('loading');
   elements.convertKmlButton.disabled = true;
+  const spinner = elements.convertKmlButton.querySelector('#convertKmlSpinner');
+  const icon = elements.convertKmlButton.querySelector('#convertKmlIcon');
+  if (spinner) spinner.style.display = 'block';
+  if (icon) icon.style.display = 'none';
   
   try {
     const fileText = await new Promise((resolve, reject) => {
@@ -1460,20 +1415,20 @@ async function convertKMLToMaps() {
       infoText += `\n(simplificado de ${coordinates.length} pontos)`;
     }
     elements.resultInfo.textContent = infoText;
-    elements.resultSection.classList.add('show');
+    elements.resultSection.style.display = 'flex';
     
     elements.downloadButton.style.display = 'none';
-    elements.copyLinkButton.style.display = 'flex';
+    elements.copyLinkButton.style.display = 'inline-flex';
     
     showCurrentFileInfo(historyItem);
     
     // Copiar link automaticamente
     navigator.clipboard.writeText(linkResult.link).then(() => {
-      elements.copyLinkButtonText.textContent = 'Link Copiado!';
+      elements.copyLinkButtonText.textContent = 'Copiado!';
       elements.copyLinkButton.classList.add('success');
       
       setTimeout(() => {
-        elements.copyLinkButtonText.textContent = 'Copiar Novamente';
+        elements.copyLinkButtonText.textContent = 'Copiar';
         elements.copyLinkButton.classList.remove('success');
       }, 2500);
     }).catch(err => {
@@ -1488,6 +1443,10 @@ async function convertKMLToMaps() {
   } finally {
     elements.convertKmlButton.classList.remove('loading');
     elements.convertKmlButton.disabled = false;
+    const spinner = elements.convertKmlButton.querySelector('#convertKmlSpinner');
+    const icon = elements.convertKmlButton.querySelector('#convertKmlIcon');
+    if (spinner) spinner.style.display = 'none';
+    if (icon) icon.style.display = 'block';
   }
 }
 
@@ -1496,25 +1455,38 @@ async function convertKMLToMaps() {
 // ============================================
 
 function addEventListeners() {
-  if (elements.themeToggle) {
-    elements.themeToggle.addEventListener('click', (e) => {
+  // Theme Switcher
+  if (themeDropdownBtn) {
+    themeDropdownBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleThemeDropdown();
+      if (themeSwitcher) themeSwitcher.classList.toggle('open');
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (themeSwitcher && !themeSwitcher.contains(e.target)) {
+      themeSwitcher.classList.remove('open');
+    }
+    if (window.innerWidth <= 768 && elements.sidebar && !elements.sidebar.contains(e.target) && elements.mobileToggle && !elements.mobileToggle.contains(e.target)) {
+      elements.sidebar.classList.remove('open');
+    }
+  });
+  
+  if (themeSystem && themeDark && themeLight) {
+    [themeSystem, themeDark, themeLight].forEach((btn, i) => {
+      btn.addEventListener('click', () => {
+        setTheme(['system', 'dark', 'light'][i]);
+        if (themeSwitcher) themeSwitcher.classList.remove('open');
+      });
     });
   }
   
-  document.querySelectorAll('.theme-option').forEach(option => {
-    option.addEventListener('click', (e) => {
-      e.stopPropagation();
-      selectTheme(option.dataset.theme);
+  // Mobile Toggle
+  if (elements.mobileToggle) {
+    elements.mobileToggle.addEventListener('click', () => {
+      if (elements.sidebar) elements.sidebar.classList.toggle('open');
     });
-  });
-  
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.theme-dropdown-wrapper')) {
-      closeThemeDropdown();
-    }
-  });
+  }
   
   if (elements.resetButton) {
     elements.resetButton.addEventListener('click', resetPage);
@@ -1566,6 +1538,24 @@ function initialize() {
   setupAutoSave();
   loadFormData();
   renderHistory();
+  
+  // Navigation - apenas scroll para converter
+  const navItems = document.querySelectorAll('.nav-item[href^="#"]');
+  navItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      const href = item.getAttribute('href');
+      if (href.startsWith('#')) {
+        e.preventDefault();
+        const targetId = href.substring(1);
+        const target = document.getElementById(targetId);
+        if (target) {
+          window.scrollTo({ top: target.offsetTop - 60, behavior: 'smooth' });
+          navItems.forEach(nav => nav.classList.remove('active'));
+          item.classList.add('active');
+        }
+      }
+    });
+  });
   
   if (elements.linkInput) {
     elements.linkInput.focus();
