@@ -2,6 +2,7 @@ const THEME_STORAGE_KEY = 'euoryan_theme';
 const AUTO_SAVE_KEY = 'geokml_autosave';
 const HISTORY_STORAGE_KEY = 'geokml_history';
 const MAX_HISTORY_ITEMS = 20;
+const APP_VERSION = '0.1.7'; // Versão da aplicação - atualizar a cada correção/melhoria
 
 const elements = {
   linkInput: document.getElementById('linkInput'),
@@ -1658,6 +1659,12 @@ function initialize() {
   setupAutoSave();
   loadFormData();
   renderHistory();
+  
+  // Atualizar versão nos elementos HTML
+  const versionBadge = document.getElementById('versionBadge');
+  const versionHeader = document.getElementById('versionHeader');
+  if (versionBadge) versionBadge.textContent = `v${APP_VERSION}`;
+  if (versionHeader) versionHeader.textContent = `v${APP_VERSION}`;
   
   // Navigation - apenas scroll para converter
   const navItems = document.querySelectorAll('.nav-item[href^="#"]');
