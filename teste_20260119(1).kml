@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>teste</name>
+    <description>Rota convertida do Google Maps com 5 pontos</description>
+    <Placemark>
+      <name>Rota</name>
+      <LineString>
+        <tessellate>1</tessellate>
+        <coordinates>-48.6707203,-27.6570226,0 -48.6645192,-27.6422944,0 -48.6591824,-27.6355352,0 -48.6528114,-27.6388387,0 -48.6475333,-27.6293652,0</coordinates>
+      </LineString>
+    </Placemark>
+    <Placemark>
+      <name>Ponto 1</name>
+      <Point>
+        <coordinates>-48.6707203,-27.6570226,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ponto 2</name>
+      <Point>
+        <coordinates>-48.6645192,-27.6422944,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ponto 3</name>
+      <Point>
+        <coordinates>-48.6591824,-27.6355352,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ponto 4</name>
+      <Point>
+        <coordinates>-48.6528114,-27.6388387,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ponto 5</name>
+      <Point>
+        <coordinates>-48.6475333,-27.6293652,0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>

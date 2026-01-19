@@ -579,10 +579,10 @@ function showCurrentFileInfo(item) {
 
 function extractCoordinatesFromUrl(url) {
   const orderedCoords = []; // Coordenadas na ordem correta
-  const coordSet = new Set(); // Para evitar duplicatas exatas
+  const coordSet = new Set(); // Para evitar duplicatas exatas (tolerância de 6 casas decimais)
   
   let decodedUrl = url;
-  // Decodificar URL múltiplas vezes se necessário
+  // Decodificar URL múltiplas vezes se necessário (alguns links têm encoding duplo)
   try {
     decodedUrl = decodeURIComponent(url);
     if (decodedUrl.includes('%')) {
@@ -596,28 +596,86 @@ function extractCoordinatesFromUrl(url) {
     decodedUrl = url;
   }
   
-  // ESTRATÉGIA: Extrair TODAS as coordenadas do 'data' e também de toda a URL
-  // O parâmetro 'data' contém as coordenadas na ordem correta da rota
+  // ESTRATÉGIA CORRIGIDA PARA MÁXIMA PRECISÃO:
+  // O problema: Links podem ter endereços nomeados no /dir/ que precisam de coordenadas do data=
+  // Solução: Mapear cada item do /dir/ (coordenada OU endereço) com coordenadas do data= na ordem correta
   
-  // FASE 1: Extrair TODAS as coordenadas do 'data' na ordem que aparecem
+  // ============================================
+  // FASE 1: Extrair TODOS os itens do /dir/ na ordem (coordenadas E endereços nomeados)
+  // ============================================
+  const dirMatch = decodedUrl.match(/\/dir\/([^?@]+?)(?:\/@|\/data=|\?|$)/);
+  const dirItems = []; // Array de objetos: {type: 'coord'|'named', value: [lat,lng]|null, original: string}
+  
+  if (dirMatch) {
+    const routeSection = dirMatch[1];
+    const items = routeSection.split('/');
+    
+    for (let item of items) {
+      item = item.trim();
+      if (!item) continue;
+      
+      // Tentar extrair coordenada direta
+      let cleanItem = item;
+      let coordMatch = cleanItem.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+      
+      if (!coordMatch) {
+        cleanItem = cleanItem.split(/[+@\s]/).pop().trim();
+        coordMatch = cleanItem.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+      }
+      
+      if (!coordMatch) {
+        coordMatch = item.match(/(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      }
+      
+      if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lng = parseFloat(coordMatch[2]);
+        
+        if (!isNaN(lat) && !isNaN(lng) && 
+            lat >= -90 && lat <= 90 && 
+            lng >= -180 && lng <= 180) {
+          dirItems.push({
+            type: 'coord',
+            value: [lat, lng],
+            original: item
+          });
+        } else {
+          // É um endereço nomeado
+          dirItems.push({
+            type: 'named',
+            value: null,
+            original: item
+          });
+        }
+      } else {
+        // É um endereço nomeado (não tem coordenada direta)
+        dirItems.push({
+          type: 'named',
+          value: null,
+          original: item
+        });
+      }
+    }
+  }
+  
+  // ============================================
+  // FASE 2: Extrair TODAS as coordenadas do parâmetro 'data=' na ordem
+  // ============================================
   const dataMatch = decodedUrl.match(/[?&]data=([^&]+)/);
-  const dataCoords = [];
+  const dataCoords = []; // Array de [lat, lng] na ordem que aparecem no data=
   
   if (dataMatch) {
     try {
       const dataParam = dataMatch[1];
       
-      // Padrão 1: !2m2!1d[lng]!2d[lat] (formato mais comum em rotas com múltiplos pontos)
+      // Padrão 1: !2m2!1d[lng]!2d[lat] (formato mais comum)
       // Padrão 2: !1d[lng]!2d[lat] (formato alternativo)
-      // IMPORTANTE: No formato !1d[lng]!2d[lat], o primeiro é longitude e o segundo é latitude
       const pattern1 = /!2m2!1d(-?\d+\.?\d*)!2d(-?\d+\.?\d*)/g;
       const pattern2 = /!1d(-?\d+\.?\d*)!2d(-?\d+\.?\d*)/g;
       
-      // Capturar TODOS os matches de ambos os padrões usando matchAll
       const matches1 = [...dataParam.matchAll(pattern1)];
       const matches2 = [...dataParam.matchAll(pattern2)];
       
-      // Combinar todos os matches com suas posições
       const allMatches = [];
       
       for (const match of matches1) {
@@ -629,7 +687,6 @@ function extractCoordinatesFromUrl(url) {
       }
       
       for (const match of matches2) {
-        // Evitar duplicatas do pattern1
         const isDuplicate = matches1.some(m1 => 
           m1.index === match.index && m1[0] === match[0]
         );
@@ -642,18 +699,19 @@ function extractCoordinatesFromUrl(url) {
         }
       }
       
-      // Ordenar matches pela posição na string para manter a ordem exata
       allMatches.sort((a, b) => a.position - b.position);
       
-      // Processar matches na ordem, evitando duplicatas
       const seen = new Set();
       for (const item of allMatches) {
         const match = item.match;
         const lng = parseFloat(match[1]);
         const lat = parseFloat(match[2]);
         
-        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        if (!isNaN(lat) && !isNaN(lng) && 
+            lat >= -90 && lat <= 90 && 
+            lng >= -180 && lng <= 180) {
           const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+          
           if (!seen.has(key)) {
             seen.add(key);
             dataCoords.push([lat, lng]);
@@ -665,8 +723,77 @@ function extractCoordinatesFromUrl(url) {
     }
   }
   
-  // FASE 2: Se encontramos coordenadas no data, usar elas diretamente na ordem
-  if (dataCoords.length > 0) {
+  // ============================================
+  // FASE 3: Mapear itens do /dir/ com coordenadas do data=
+  // ============================================
+  // Estratégia CORRIGIDA E ROBUSTA:
+  // O data= contém coordenadas APENAS para endereços nomeados (não para coordenadas diretas)
+  // Então precisamos mapear sequencialmente: para cada endereço nomeado, usar próxima coordenada do data=
+  
+  let dataIndex = 0; // Índice para percorrer dataCoords sequencialmente
+  
+  for (let i = 0; i < dirItems.length; i++) {
+    const item = dirItems[i];
+    
+    if (item.type === 'coord') {
+      // Item tem coordenada direta - SEMPRE usar ela (ordem explícita da rota)
+      const dirKey = `${item.value[0].toFixed(6)},${item.value[1].toFixed(6)}`;
+      
+      if (!coordSet.has(dirKey)) {
+        coordSet.add(dirKey);
+        orderedCoords.push(item.value);
+      }
+      
+      // NÃO avançar índice do data= porque coordenadas diretas não estão no data=
+    } else {
+      // Item é endereço nomeado, usar próxima coordenada disponível do data=
+      while (dataIndex < dataCoords.length) {
+        const coord = dataCoords[dataIndex];
+        const key = `${coord[0].toFixed(6)},${coord[1].toFixed(6)}`;
+        
+        // Verificar se esta coordenada já foi usada
+        const alreadyUsed = orderedCoords.some(c => 
+          Math.abs(c[0] - coord[0]) < 0.000001 && 
+          Math.abs(c[1] - coord[1]) < 0.000001
+        );
+        
+        if (!alreadyUsed && !coordSet.has(key)) {
+          // Esta coordenada ainda não foi usada, usar para este endereço nomeado
+          coordSet.add(key);
+          orderedCoords.push(coord);
+          dataIndex++;
+          break;
+        }
+        
+        // Se já foi usada, avançar para próxima coordenada do data=
+        dataIndex++;
+      }
+    }
+  }
+  
+  // Adicionar coordenadas restantes do data= que não foram mapeadas
+  // (pode haver coordenadas adicionais no final, como ponto final da rota)
+  while (dataIndex < dataCoords.length) {
+    const coord = dataCoords[dataIndex];
+    const key = `${coord[0].toFixed(6)},${coord[1].toFixed(6)}`;
+    
+    const alreadyUsed = orderedCoords.some(c => 
+      Math.abs(c[0] - coord[0]) < 0.000001 && 
+      Math.abs(c[1] - coord[1]) < 0.000001
+    );
+    
+    if (!alreadyUsed && !coordSet.has(key)) {
+      coordSet.add(key);
+      orderedCoords.push(coord);
+    }
+    
+    dataIndex++;
+  }
+  
+  // ============================================
+  // FASE 4: Se não temos /dir/, usar data= como fonte principal
+  // ============================================
+  if (dirItems.length === 0 && dataCoords.length > 0) {
     for (const coord of dataCoords) {
       const key = `${coord[0].toFixed(6)},${coord[1].toFixed(6)}`;
       if (!coordSet.has(key)) {
@@ -676,83 +803,76 @@ function extractCoordinatesFromUrl(url) {
     }
   }
   
-  // FASE 3: Se ainda não temos coordenadas suficientes, buscar em toda a URL
-  // Isso captura coordenadas que podem estar fora do parâmetro data=
+  // ============================================
+  // FASE 5: Fallback - buscar em toda a URL se ainda não temos coordenadas suficientes
+  // ============================================
   if (orderedCoords.length === 0 || orderedCoords.length < 2) {
     const urlPattern1 = /!2m2!1d(-?\d+\.?\d*)!2d(-?\d+\.?\d*)/g;
     const urlPattern2 = /!1d(-?\d+\.?\d*)!2d(-?\d+\.?\d*)/g;
+    const urlPattern3 = /(-?\d+\.?\d*),(-?\d+\.?\d*)/g;
+    
     const urlMatches1 = [...decodedUrl.matchAll(urlPattern1)];
     const urlMatches2 = [...decodedUrl.matchAll(urlPattern2)];
+    const urlMatches3 = [...decodedUrl.matchAll(urlPattern3)];
     
-    // Combinar matches de toda a URL
     const allUrlMatches = [];
     
     for (const match of urlMatches1) {
       allUrlMatches.push({
         match: match,
-        position: match.index
+        position: match.index,
+        type: 'pattern1'
       });
     }
     
     for (const match of urlMatches2) {
-      // Evitar duplicatas
       const isDuplicate = urlMatches1.some(m1 => 
         m1.index === match.index && m1[0] === match[0]
       );
       if (!isDuplicate) {
         allUrlMatches.push({
           match: match,
-          position: match.index
+          position: match.index,
+          type: 'pattern2'
         });
       }
     }
     
-    // Ordenar por posição
+    for (const match of urlMatches3) {
+      const isDuplicate = allUrlMatches.some(m => 
+        Math.abs(m.position - match.index) < 10 && 
+        (m.match[0].includes(match[1]) || m.match[0].includes(match[2]))
+      );
+      if (!isDuplicate) {
+        allUrlMatches.push({
+          match: match,
+          position: match.index,
+          type: 'pattern3'
+        });
+      }
+    }
+    
     allUrlMatches.sort((a, b) => a.position - b.position);
     
-    // Adicionar coordenadas que ainda não foram adicionadas
     for (const item of allUrlMatches) {
       const match = item.match;
-      const lng = parseFloat(match[1]);
-      const lat = parseFloat(match[2]);
+      let lat, lng;
       
-      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      if (item.type === 'pattern1' || item.type === 'pattern2') {
+        lng = parseFloat(match[1]);
+        lat = parseFloat(match[2]);
+      } else {
+        lat = parseFloat(match[1]);
+        lng = parseFloat(match[2]);
+      }
+      
+      if (!isNaN(lat) && !isNaN(lng) && 
+          lat >= -90 && lat <= 90 && 
+          lng >= -180 && lng <= 180) {
         const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
         if (!coordSet.has(key)) {
           coordSet.add(key);
           orderedCoords.push([lat, lng]);
-        }
-      }
-    }
-  }
-  
-  // FASE 4: Fallback - tentar extrair do /dir/ se ainda não temos coordenadas
-  if (orderedCoords.length === 0) {
-    const dirMatch = decodedUrl.match(/\/dir\/(.*?)(?:\/@|\/data=|\?|$)/);
-    
-    if (dirMatch) {
-      const routeSection = dirMatch[1];
-      const items = routeSection.split('/');
-      
-      for (let item of items) {
-        item = item.trim();
-        if (!item) continue;
-        
-        // Tentar extrair coordenada direta
-        const cleanItem = item.split(/[+@\s]/)[0].trim();
-        const coordMatch = cleanItem.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
-        
-        if (coordMatch) {
-          const lat = parseFloat(coordMatch[1]);
-          const lng = parseFloat(coordMatch[2]);
-          
-          if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-            const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-            if (!coordSet.has(key)) {
-              coordSet.add(key);
-              orderedCoords.push([lat, lng]);
-            }
-          }
         }
       }
     }
